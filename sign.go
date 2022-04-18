@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	crypto "sgx-sign-service/crypro"
 )
@@ -15,10 +16,10 @@ var (
 
 // 签名服务接口-方便以后拓展
 type SGXSignServe interface {
-	// 创建账号(返回用户的地址/特定表示符号)
-	CreateAccount() string
 	// 签名
-	Sign(date []byte, account string) ([]byte, error)
+	Sign(msg []byte) ([]byte, error)
+	// 验证
+	verify(sign []byte, msg []byte) (bool, error)
 }
 
 // 超级链账号
@@ -35,53 +36,94 @@ type XuperChainAccount struct {
 	Mnemonic string
 }
 
-func NewXuperchainAccount() *XuperChainAccount {
-	return &XuperChainAccount{}
-}
-
 // 创建账号
-func (x *XuperChainAccount) CreateAccount() string {
+func CreateXuperAccount() (string, error) {
 	cli := crypto.GetCryptoClient()
 	ecdsaAccount, err := cli.CreateNewAccountWithMnemonic(language, strength)
 	if err != nil {
 		log.Printf("CreateAccount CreateNewAccountWithMnemonic err: %v", err)
-		return "CreateAccount CreateNewAccountWithMnemonic err"
+		return "CreateAccount CreateNewAccountWithMnemonic err", err
 	}
 
-	account := &XuperChainAccount{
-		Address:    ecdsaAccount.Address,
-		PublicKey:  ecdsaAccount.JsonPublicKey,
-		PrivateKey: ecdsaAccount.JsonPrivateKey,
-		Mnemonic:   ecdsaAccount.Mnemonic,
-	}
+	//account := &XuperChainAccount{
+	//	Address:    ecdsaAccount.Address,
+	//	//PublicKey:  ecdsaAccount.JsonPublicKey,
+	//	//PrivateKey: ecdsaAccount.JsonPrivateKey,
+	//	Mnemonic:   ecdsaAccount.Mnemonic,
+	//}
 	// 持久化
-	GDB.Add(account.Address, account.Mnemonic)
-
-	return account.Address
+	GDB.Add(ecdsaAccount.Address, ecdsaAccount.Mnemonic)
+	return ecdsaAccount.Address, nil
 }
 
-// 签名
-func (x *XuperChainAccount) Sign(address string, data []byte) ([]byte, error) {
-	// todo
+// 新建签名服务
+func NewXuperchainAccount(address string) SGXSignServe {
 	// 从数据库中读取account 的信息
 	mnemonic, err := GDB.Query(address)
 	if err != nil {
-		return nil, err
+		return nil
 	}
 	// 恢复
 	cryptoClient := crypto.GetCryptoClient()
 	ecdsaAccount, err := cryptoClient.RetrieveAccountByMnemonic(mnemonic, language)
 	if err != nil {
-		return nil, err
+		return nil
 	}
+
+	return &XuperChainAccount{
+		Address:    ecdsaAccount.Address,
+		PublicKey:  ecdsaAccount.JsonPublicKey,
+		PrivateKey: ecdsaAccount.JsonPrivateKey,
+		Mnemonic:   ecdsaAccount.Mnemonic,
+	}
+}
+
+// 签名
+func (x *XuperChainAccount) Sign(msg []byte) ([]byte, error) {
+	cryptoClient := crypto.GetCryptoClient()
 	// 签名
-	privateKey, err := cryptoClient.GetEcdsaPrivateKeyFromJsonStr(ecdsaAccount.JsonPrivateKey)
+	privateKey, err := cryptoClient.GetEcdsaPrivateKeyFromJsonStr(x.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
-	sign, err := cryptoClient.SignECDSA(privateKey, data)
+
+	sign, err := cryptoClient.SignECDSA(privateKey, msg)
 	if err != nil {
 		return nil, err
 	}
-	return sign, nil
+
+	signInfo := struct {
+		PublicKey string
+		Sign      []byte
+	}{
+		PublicKey: x.PublicKey,
+		Sign:      sign,
+	}
+
+	data, err := json.Marshal(&signInfo)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// 验证
+func (x *XuperChainAccount) verify(sign []byte, msg []byte) (bool, error) {
+	cryptoClient := crypto.GetCryptoClient()
+	// 公钥
+	publickey, err := cryptoClient.GetEcdsaPublicKeyFromJsonStr(x.PublicKey)
+	if err != nil {
+		return false, err
+	}
+	signInfo := struct {
+		PublicKey string
+		Sign      []byte
+	}{}
+
+	err = json.Unmarshal(sign, &signInfo)
+	if err != nil {
+		return false, err
+	}
+	// 验证
+	return cryptoClient.VerifyECDSA(publickey, signInfo.Sign, msg)
 }

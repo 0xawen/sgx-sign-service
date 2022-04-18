@@ -9,7 +9,7 @@ import (
 
 func Test_DB(t *testing.T) {
 
-	dbsoucename := "test"
+	dbsoucename := "test_db"
 
 	db, err := InitDB(dbsoucename)
 	if err != nil {
