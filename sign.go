@@ -93,8 +93,8 @@ func (x *XuperChainAccount) Sign(msg []byte) ([]byte, error) {
 	}
 
 	signInfo := struct {
-		PublicKey string
-		Sign      []byte
+		PublicKey string `json:"public_key"`
+		Sign      []byte `json:"sign"`
 	}{
 		PublicKey: x.PublicKey,
 		Sign:      sign,

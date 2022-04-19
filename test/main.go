@@ -12,87 +12,88 @@ var (
 	msg  = "123456"
 )
 
+// 响应结果
+type Response struct {
+	Code int    `json:"code"` // 错误码
+	Msg  string `json:"msg"`  // 信息提示
+	Data []byte `json:"data"` // 返回数据
+}
+
 // 集成测试
 func main() {
-	//fmt.Println("==========  测试: /ping ========== ")
-	//GET(URL + "/ping")
-	//
-	//fmt.Println("==========  测试: /create ========== ")
-	//fmt.Println(GET(URL + "/create"))
+	fmt.Println("==========  测试: /ping ========== ")
+	pingResult, err := request(URL+"/ping", "GET", nil)
+	if err != nil {
+		fmt.Println("ping:", err)
+		return
+	}
+	fmt.Println(pingResult)
+
+	fmt.Println("==========  测试: /create ========== ")
+	createResult, err := request(URL+"/create", "GET", nil)
+	if err != nil {
+		fmt.Println("create:", err)
+		return
+	}
+	fmt.Println(createResult)
 
 	fmt.Println("==========  测试: /sign ========== ")
-	args := map[string]interface{}{
+	signArgs := map[string]interface{}{
 		"address": addr,
 		"msg":     msg,
 	}
-	result := POST(URL+"/sign", args)
-	sign, ok := result["data"]
-	if !ok {
-		fmt.Println("key data not exist")
+	signResult, err := request(URL+"/sign", "POST", signArgs)
+	if err != nil {
+		fmt.Println("create:", err)
+		return
 	}
-	fmt.Println(sign)
+	fmt.Println(signResult)
 
 	fmt.Println("========== 测试: /verify ==========")
-	args1 := map[string]interface{}{
+	verifyArgs := map[string]interface{}{
 		"address": addr,
-		"sign":    sign,
+		"sign":    signResult.Data,
 		"msg":     msg,
 	}
-	result1 := POST(URL+"/verify", args1)
-	fmt.Println(result1)
-}
-
-func GET(url string) map[string]string {
-	req := fasthttp.AcquireRequest()
-	defer fasthttp.ReleaseRequest(req) // 用完需要释放资源
-	// 默认是application/x-www-form-urlencoded
-	req.Header.SetContentType("application/json")
-	req.Header.SetMethod("GET")
-
-	req.SetRequestURI(url)
-
-	resp := fasthttp.AcquireResponse()
-	defer fasthttp.ReleaseResponse(resp) // 用完需要释放资源
-
-	if err := fasthttp.Do(req, resp); err != nil {
-		fmt.Println("请求失败:", err.Error())
-		return nil
-	}
-	b := resp.Body()
-	fmt.Println("result:\r\n", string(b))
-
-	result := map[string]string{}
-	_ = json.Unmarshal(b, &result)
-	return result
-}
-
-func POST(url string, args map[string]interface{}) map[string]interface{} {
-	req := fasthttp.AcquireRequest()
-	defer fasthttp.ReleaseRequest(req) // 用完需要释放资源
-	// 默认是application/x-www-form-urlencoded
-	req.Header.SetContentType("application/json")
-	req.Header.SetMethod("POST")
-
-	req.SetRequestURI(url)
-
-	requestBody, err := json.Marshal(&args)
+	verifyResult, err := request(URL+"/verify", "POST", verifyArgs)
 	if err != nil {
-		fmt.Println(" paramer error")
-		return nil
+		fmt.Println("create:", err)
+		return
 	}
-	req.SetBody(requestBody)
+	fmt.Println(string(verifyResult.Data))
+}
+
+// 请求服务封装
+func request(url, method string, args map[string]interface{}) (*Response, error) {
+	req := fasthttp.AcquireRequest()
+	defer fasthttp.ReleaseRequest(req) // 用完需要释放资源
+	// 默认是application/x-www-form-urlencoded
+	req.Header.SetContentType("application/json")
+	req.Header.SetMethod(method)
+
+	req.SetRequestURI(url)
+
+	// 请求体
+	if args != nil {
+		requestBody, err := json.Marshal(&args)
+		if err != nil {
+			return nil, err
+		}
+		req.SetBody(requestBody)
+	}
 
 	resp := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseResponse(resp) // 用完需要释放资源
 
 	if err := fasthttp.Do(req, resp); err != nil {
-		fmt.Println("请求失败:", err.Error())
-		return nil
+		return nil, err
 	}
-	b := resp.Body()
-	fmt.Println("result:\r\n", string(b))
 
-	result := map[string]interface{}{}
-	_ = json.Unmarshal(b, &result)
-	return result
+	// 处理返回结果
+	res := &Response{}
+	err := json.Unmarshal(resp.Body(), res)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }

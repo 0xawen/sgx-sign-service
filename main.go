@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 /// 此应用放在sgx 运行
@@ -22,10 +23,8 @@ func init() {
 func main() {
 	r := gin.Default()
 	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"msg":  "ok",
-			"data": "sign serve ok",
-		})
+		// 使用统一返回结构
+		c.JSON(http.StatusOK, NewResponse(http.StatusOK, SUCCESSMSG))
 	})
 
 	// 创建地址
@@ -33,17 +32,10 @@ func main() {
 		// 创建地址
 		addr, err := CreateXuperAccount()
 		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"msg":  "error",
-				"data": nil,
-			})
+			c.JSON(http.StatusOK, NewResponse(ErrCode, ERRORMSG))
 			return
 		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"msg":  "ok",
-			"data": addr,
-		})
+		c.JSON(http.StatusOK, NewResponse(OKCode, SUCCESSMSG).WithData([]byte(addr)))
 	})
 
 	// 签名
@@ -55,36 +47,22 @@ func main() {
 		}{}
 		err := c.ShouldBindJSON(&paramters)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"msg":  "paramters error",
-				"data": nil,
-			})
+			c.JSON(http.StatusBadRequest, NewResponse(ErrCode, PAMATERSERR))
 			return
 		}
 		// 校验参数
 		if paramters.Address == "" || paramters.Msg == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"msg":  "paramters error",
-				"data": nil,
-			})
+			c.JSON(http.StatusBadRequest, NewResponse(ErrCode, PAMATERSERR))
 			return
 		}
 		// 签名
 		signserve := NewXuperchainAccount(paramters.Address)
 		sign, err := signserve.Sign([]byte(paramters.Msg))
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"msg":  "sign error",
-				"data": nil,
-			})
+			c.JSON(http.StatusInternalServerError, NewResponse(500, "sign error"))
 			return
 		}
-
-		// todo 处理 sign
-		c.JSON(http.StatusOK, gin.H{
-			"msg":  "sign success",
-			"data": sign,
-		})
+		c.JSON(http.StatusOK, NewResponse(OKCode, SUCCESSMSG).WithData(sign))
 	})
 
 	// 验证
@@ -97,17 +75,11 @@ func main() {
 		}{}
 		err := c.ShouldBindJSON(&paramters)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"msg":  "paramters error",
-				"data": nil,
-			})
+			c.JSON(http.StatusBadRequest, NewResponse(ErrCode, PAMATERSERR))
 			return
 		}
 		if paramters.Address == "" || paramters.Sign == nil || paramters.Msg == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"msg":  "paramters error",
-				"data": nil,
-			})
+			c.JSON(http.StatusBadRequest, NewResponse(ErrCode, PAMATERSERR))
 			return
 		}
 		// 校验
@@ -115,16 +87,10 @@ func main() {
 		result, err := signserve.verify(paramters.Sign, []byte(paramters.Msg))
 		if err != nil {
 			log.Println(err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"msg":  "verify error",
-				"data": nil,
-			})
+			c.JSON(http.StatusInternalServerError, NewResponse(500, "verify error"))
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"msg":  "verify success",
-			"data": result,
-		})
+		c.JSON(http.StatusOK, NewResponse(OKCode, "verify success").WithData([]byte(strconv.FormatBool(result))))
 	})
 
 	//监听端口默认为8080
