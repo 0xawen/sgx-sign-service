@@ -82,3 +82,18 @@ func (d *DB) Query(address string) (string, error) {
 	}
 	return Mnemonic, nil
 }
+
+func (d *DB) IsExist(address string) bool {
+	sqlStatement := `select Address from XuperChainAccount where Address=$1`
+	row := d.db.QueryRow(sqlStatement, address)
+	var resultAddress string
+	err := row.Scan(&resultAddress)
+	if err != nil {
+		return false
+	}
+
+	if address == resultAddress {
+		return true
+	}
+	return false
+}

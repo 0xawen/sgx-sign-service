@@ -40,7 +40,7 @@ func main() {
 	fmt.Println("==========  测试: /sign ========== ")
 	signArgs := map[string]interface{}{
 		"address": addr,
-		"msg":     msg,
+		"msg":     []byte(msg),
 	}
 	signResult, err := request(URL+"/sign", "POST", signArgs)
 	if err != nil {

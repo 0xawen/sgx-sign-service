@@ -44,16 +44,14 @@ func CreateXuperAccount() (string, error) {
 		log.Printf("CreateAccount CreateNewAccountWithMnemonic err: %v", err)
 		return "CreateAccount CreateNewAccountWithMnemonic err", err
 	}
-
-	//account := &XuperChainAccount{
-	//	Address:    ecdsaAccount.Address,
-	//	//PublicKey:  ecdsaAccount.JsonPublicKey,
-	//	//PrivateKey: ecdsaAccount.JsonPrivateKey,
-	//	Mnemonic:   ecdsaAccount.Mnemonic,
-	//}
 	// 持久化
 	GDB.Add(ecdsaAccount.Address, ecdsaAccount.Mnemonic)
 	return ecdsaAccount.Address, nil
+}
+
+// 账号是否以及存在
+func IsExist(address string) bool {
+	return GDB.IsExist(address)
 }
 
 // 新建签名服务

@@ -43,7 +43,7 @@ func main() {
 		// 传入需要地址和数据
 		paramters := struct {
 			Address string `json:"address"`
-			Msg     string `json:"msg"`
+			Msg     []byte `json:"msg"`
 		}{}
 		err := c.ShouldBindJSON(&paramters)
 		if err != nil {
@@ -51,13 +51,13 @@ func main() {
 			return
 		}
 		// 校验参数
-		if paramters.Address == "" || paramters.Msg == "" {
+		if paramters.Address == "" || paramters.Msg == nil {
 			c.JSON(http.StatusBadRequest, NewResponse(ErrCode, PAMATERSERR))
 			return
 		}
 		// 签名
 		signserve := NewXuperchainAccount(paramters.Address)
-		sign, err := signserve.Sign([]byte(paramters.Msg))
+		sign, err := signserve.Sign(paramters.Msg)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, NewResponse(500, "sign error"))
 			return
@@ -91,6 +91,24 @@ func main() {
 			return
 		}
 		c.JSON(http.StatusOK, NewResponse(OKCode, "verify success").WithData([]byte(strconv.FormatBool(result))))
+	})
+
+	// 验证 address 是否已经存在
+	r.POST("/is-exist", func(c *gin.Context) {
+		paramters := struct {
+			Address string `json:"address"`
+		}{}
+		err := c.ShouldBindJSON(&paramters)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, NewResponse(ErrCode, PAMATERSERR))
+			return
+		}
+		if paramters.Address == "" {
+			c.JSON(http.StatusBadRequest, NewResponse(ErrCode, PAMATERSERR))
+			return
+		}
+		result := IsExist(paramters.Address)
+		c.JSON(http.StatusOK, NewResponse(OKCode, "query address").WithData([]byte(strconv.FormatBool(result))))
 	})
 
 	//监听端口默认为8080
